@@ -1,18 +1,297 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
+    provider = "prisma-client-js"
+    output   = "../generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
 }
 
+// --- Enums ---
+
+enum AccountType {
+    USER
+    SELLER
+    ADMIN
+}
+
+enum VerificationStatus {
+    UNVERIFIED
+    PENDING
+    VERIFIED
+    REJECTED
+}
+
+enum Currency {
+    GHS
+    NGN
+    USD
+}
+
+enum TransactionStatus {
+    AWAITING_FUNDING
+    FUNDED
+    GOODS_SHIPPED
+    GOODS_RECEIVED
+    AWAITING_RELEASE
+    DISPUTED
+    COMPLETED
+    CANCELED
+}
+
+enum PaymentType {
+    DEPOSIT
+    WITHDRAWAL
+    REFUND
+    FEE
+}
+
+enum PaymentMethod {
+    MOBILE_MONEY
+    BANK_TRANSFER
+    CARD
+    INTERNAL
+}
+
+enum PaymentStatus {
+    PENDING
+    SUCCESSFUL
+    FAILED
+    PROCESSING
+    REFUNDED
+}
+
+enum DisputeStatus {
+    OPEN
+    AWAITING_RESPONSE
+    UNDER_REVIEW
+    RESOLVED_BUYER_FAVOR
+    RESOLVED_SELLER_FAVOR
+    CLOSED
+}
+
+enum NotificationType {
+    TRANSACTION_UPDATE
+    PAYMENT_RECEIVED
+    PAYMENT_SENT
+    DISPUTE_OPENED
+    DISPUTE_UPDATE
+    ACTION_REQUIRED
+    MESSAGE_RECEIVED
+    REVIEW_REQUESTED
+    GENERAL
+}
+
+enum FeeType {
+    ESCROW_SERVICE_FEE
+    WITHDRAWAL_PROCESSING_FEE
+    PAYMENT_GATEWAY_FEE
+}
+
+enum FeeStatus {
+    PENDING
+    PAID
+    CALCULATED
+    WAIVED
+    DEDUCTED
+}
+
+enum ReviewType {
+    BUYER_REVIEWING_SELLER
+    SELLER_REVIEWING_BUYER
+}
+
+// --- Models ---
+
 model User {
-  id        String   @id
-  email     String   @unique
-  name      String?
-  password  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime
+    id                 String             @id @default(uuid())
+    firstName          String
+    lastName           String?
+    email              String             @unique
+    passwordHash       String
+    phoneNumber        String?            @unique
+    accountType        AccountType        @default(USER)
+    verificationStatus VerificationStatus @default(UNVERIFIED)
+    lastLoginAt        DateTime?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    profile Profile? @relation("UserProfile")
+
+    transactionsAsBuyer  Transaction[]  @relation("BuyerTransactions")
+    transactionsAsSeller Transaction[]  @relation("SellerTransactions")
+    payments             Payment[]      @relation("UserPayments")
+    disputesInitiated    Dispute[]      @relation("DisputesInitiated")
+    disputesResolved     Dispute[]      @relation("DisputesResolved")
+    notifications        Notification[] @relation("UserNotifications")
+    messagesSent         Message[]      @relation("MessagesSent")
+    messagesReceived     Message[]      @relation("MessagesReceived")
+    reviewsGiven         Review[]       @relation("ReviewsGiven")
+    reviewsReceived      Review[]       @relation("ReviewsReceived")
+}
+
+model Profile {
+    bio               String?
+    profilePictureUrl String?
+    addressStreet     String?
+    addressCity       String?
+    addressRegion     String?
+    addressCountry    String?
+    websiteUrl        String?
+    socialMediaLinks  Json?
+    companyName       String?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    userId String @id
+    user   User   @relation("UserProfile", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+    id                   String            @id @default(uuid())
+    title                String
+    description          String?
+    amount               Decimal
+    currency             Currency
+    status               TransactionStatus @default(AWAITING_FUNDING)
+    terms                String?
+    fundingDeadline      DateTime?
+    inspectionPeriodDays Int?
+    releasedAt           DateTime?
+    cancelledAt          DateTime?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    buyerId       String
+    buyer         User           @relation("BuyerTransactions", fields: [buyerId], references: [id])
+    sellerId      String
+    seller        User           @relation("SellerTransactions", fields: [sellerId], references: [id])
+    payments      Payment[]      @relation("TransactionPayments")
+    fees          Fee[]          @relation("TransactionFees")
+    messages      Message[]      @relation("TransactionMessages")
+    reviews       Review[]       @relation("TransactionReviews")
+    notifications Notification[] @relation("TransactionNotifications")
+    dispute       Dispute?       @relation("TransactionDispute")
+}
+
+model Payment {
+    id                String        @id @default(uuid())
+    amount            Decimal
+    currency          Currency
+    paymentType       PaymentType
+    paymentMethod     PaymentMethod
+    providerReference String?       @unique
+    status            PaymentStatus @default(PENDING)
+    initiatedAt       DateTime      @default(now())
+    completedAt       DateTime?
+
+    transactionId String
+    transaction   Transaction    @relation("TransactionPayments", fields: [transactionId], references: [id])
+    userId        String
+    user          User           @relation("UserPayments", fields: [userId], references: [id])
+    fees          Fee[]          @relation("PaymentFees")
+    notifications Notification[] @relation("PaymentNotifications")
+}
+
+model Dispute {
+    id                String        @id @default(uuid())
+    reason            String
+    details           String
+    status            DisputeStatus @default(OPEN)
+    resolutionDetails String?
+
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
+    resolvedAt DateTime?
+
+    transactionId String      @unique
+    transaction   Transaction @relation("TransactionDispute", fields: [transactionId], references: [id])
+    initiatorId   String
+    initiator     User        @relation("DisputesInitiated", fields: [initiatorId], references: [id])
+    resolvedById  String?
+    resolvedBy    User?       @relation("DisputesResolved", fields: [resolvedById], references: [id])
+
+    messages      Message[]      @relation("DisputeMessages")
+    notifications Notification[] @relation("DisputeNotifications")
+}
+
+model Notification {
+    id      String           @id @default(uuid())
+    type    NotificationType
+    title   String
+    message String
+    isRead  Boolean          @default(false)
+
+    createdAt DateTime @default(now())
+
+    recipientUserId      String
+    recipientUser        User         @relation("UserNotifications", fields: [recipientUserId], references: [id])
+    relatedTransactionId String?
+    relatedTransaction   Transaction? @relation("TransactionNotifications", fields: [relatedTransactionId], references: [id])
+    relatedPaymentId     String?
+    relatedPayment       Payment?     @relation("PaymentNotifications", fields: [relatedPaymentId], references: [id])
+    relatedDisputeId     String?
+    relatedDispute       Dispute?     @relation("DisputeNotifications", fields: [relatedDisputeId], references: [id])
+}
+
+model Fee {
+    id          String    @id @default(uuid())
+    description FeeType
+    amount      Decimal
+    currency    Currency
+    status      FeeStatus @default(PENDING)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    transactionId       String
+    transaction         Transaction @relation("TransactionFees", fields: [transactionId], references: [id])
+    associatedPaymentId String?
+    associatedPayment   Payment?    @relation("PaymentFees", fields: [associatedPaymentId], references: [id])
+}
+
+model Message {
+    id            String    @id @default(uuid())
+    content       String
+    isRead        Boolean   @default(false)
+    readAt        DateTime?
+    attachmentUrl String?
+
+    createdAt DateTime @default(now())
+
+    transactionId    String
+    transaction      Transaction @relation("TransactionMessages", fields: [transactionId], references: [id])
+    senderId         String
+    sender           User        @relation("MessagesSent", fields: [senderId], references: [id])
+    recipientId      String
+    recipient        User        @relation("MessagesReceived", fields: [recipientId], references: [id])
+    relatedDisputeId String?
+    relatedDispute   Dispute?    @relation("DisputeMessages", fields: [relatedDisputeId], references: [id])
+}
+
+model Review {
+    id          String     @id @default(uuid())
+    rating      Int
+    comment     String?
+    reviewType  ReviewType
+    isPublished Boolean    @default(true)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    transactionId String
+    transaction   Transaction @relation("TransactionReviews", fields: [transactionId], references: [id])
+    reviewerId    String
+    reviewer      User        @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+    revieweeId    String
+    reviewee      User        @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+
+    @@unique([transactionId, reviewerId], name: "unique_review")
 }
