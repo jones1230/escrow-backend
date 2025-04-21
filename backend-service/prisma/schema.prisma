@@ -112,8 +112,9 @@ model User {
     firstName          String
     lastName           String?
     email              String             @unique
-    passwordHash       String
+    password           String
     phoneNumber        String?            @unique
+    dateOfBirth        DateTime           @db.Time()
     accountType        AccountType        @default(USER)
     verificationStatus VerificationStatus @default(UNVERIFIED)
     lastLoginAt        DateTime?
@@ -140,7 +141,6 @@ model Profile {
     profilePictureUrl String?
     addressStreet     String?
     addressCity       String?
-    addressRegion     String?
     addressCountry    String?
     websiteUrl        String?
     socialMediaLinks  Json?
