@@ -9,6 +9,7 @@ import {
     IsEnum,
 } from 'class-validator';
 import { AccountType } from '../../../generated/prisma';
+import { Type } from 'class-transformer';
 
 export class CreateUserDto {
     @IsString()
@@ -38,8 +39,8 @@ export class CreateUserDto {
     phoneNumber?: string;
 
     @IsNotEmpty()
-    @IsString()
-    dateOfBirth: string;
+    @Type(() => Date)
+    dateOfBirth: Date;
 
     @IsEnum(AccountType)
     @IsOptional()

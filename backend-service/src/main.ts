@@ -12,6 +12,7 @@ async function bootstrap() {
     app.useGlobalInterceptors(
         new ClassSerializerInterceptor(app.get(Reflector)),
     );
+    app.setGlobalPrefix('api');
     await app.listen(3000);
 }
 void bootstrap().finally(() => {
