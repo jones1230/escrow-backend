@@ -11,7 +11,7 @@ export class UserService {
         return prismaClient.user.findMany();
     }
 
-    getUserById(id: string) {
+    findById(id: string) {
         return prismaClient.user.findFirst({
             where: { id },
         });
@@ -26,6 +26,12 @@ export class UserService {
     updateUser(id: string, data: UpdateUserDto) {
         return prismaClient.user.updateManyAndReturn({
             data: data,
+            where: { id },
+        });
+    }
+
+    deleteUser(id: string) {
+        return prismaClient.user.delete({
             where: { id },
         });
     }

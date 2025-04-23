@@ -30,6 +30,7 @@ export class CreateUserDto {
     @IsString()
     @IsNotEmpty()
     @MinLength(8)
+    //FIXME: Fix regex password matching
     // @Matches(/^(?=.*[a-z](?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$)/)
     password: string;
 
